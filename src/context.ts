@@ -18,6 +18,7 @@ import debug from 'debug';
 import * as playwright from 'playwright';
 
 import { Tab } from './tab.js';
+import { SessionManager } from './sessionManager.js';
 
 import type { Tool } from './tools/tool.js';
 import type { FullConfig } from './config.js';
@@ -32,12 +33,16 @@ export class Context {
   private _browserContextFactory: BrowserContextFactory;
   private _tabs: Tab[] = [];
   private _currentTab: Tab | undefined;
+  private _sessionManager: SessionManager;
+  private _sessionId: string;
   clientVersion: { name: string; version: string; } | undefined;
 
-  constructor(tools: Tool[], config: FullConfig, browserContextFactory: BrowserContextFactory) {
+  constructor(tools: Tool[], config: FullConfig, browserContextFactory: BrowserContextFactory, sessionId: string = 'default') {
     this.tools = tools;
     this.config = config;
     this._browserContextFactory = browserContextFactory;
+    this._sessionManager = SessionManager.getInstance(browserContextFactory);
+    this._sessionId = sessionId;
     testDebug('create context');
   }
 
@@ -134,6 +139,7 @@ export class Context {
     if (!this._browserContextPromise)
       return;
 
+    console.log('[DEBUG] MCP: Context.close() called. Closing browser context.');
     testDebug('close context');
 
     const promise = this._browserContextPromise;
@@ -171,9 +177,10 @@ export class Context {
   }
 
   private async _setupBrowserContext(): Promise<{ browserContext: playwright.BrowserContext, close: () => Promise<void> }> {
-    // TODO: move to the browser context factory to make it based on isolation mode.
-    const result = await this._browserContextFactory.createContext(this.clientVersion!);
-    const { browserContext } = result;
+    // Use SessionManager to get persistent browser context
+    this._sessionManager.setClientVersion(this.clientVersion!);
+    const browserContext = await this._sessionManager.getOrCreateSession(this._sessionId);
+    
     await this._setupRequestInterception(browserContext);
     for (const page of browserContext.pages())
       this._onPageCreated(page);
@@ -186,6 +193,17 @@ export class Context {
         sources: false,
       });
     }
-    return result;
+    
+    // Return with custom close function that releases session instead of closing it
+    return {
+      browserContext,
+      close: () => this._closeSessionContext()
+    };
+  }
+
+  private async _closeSessionContext(): Promise<void> {
+    // Release the session reference instead of closing the browser context
+    this._sessionManager.releaseSession(this._sessionId);
+    testDebug(`Released session reference: ${this._sessionId}`);
   }
 }

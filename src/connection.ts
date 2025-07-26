@@ -25,9 +25,10 @@ import { FullConfig } from './config.js';
 import { SessionLog } from './sessionLog.js';
 import type { BrowserContextFactory } from './browserContextFactory.js';
 
-export async function createConnection(config: FullConfig, browserContextFactory: BrowserContextFactory): Promise<Connection> {
+export async function createConnection(config: FullConfig, browserContextFactory: BrowserContextFactory, sessionId?: string): Promise<Connection> {
+  console.log('[DEBUG] MCP: Creating new connection...');
   const tools = allTools.filter(tool => tool.capability.startsWith('core') || config.capabilities?.includes(tool.capability));
-  const context = new Context(tools, config, browserContextFactory);
+  const context = new Context(tools, config, browserContextFactory, sessionId);
   const server = new McpServer({ name: 'Playwright', version: packageJSON.version }, {
     capabilities: {
       tools: {},
@@ -88,6 +89,7 @@ export class Connection {
   }
 
   async close() {
+    console.log('[DEBUG] MCP: Connection.close() called. Closing server and context.');
     await this.server.close();
     await this.context.close();
   }

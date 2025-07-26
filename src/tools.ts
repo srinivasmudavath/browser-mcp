@@ -30,6 +30,7 @@ import screenshot from './tools/screenshot.js';
 import wait from './tools/wait.js';
 import mouse from './tools/mouse.js';
 import browserDecryptType from './tools/browser_decrypt_type.js';
+import session from './tools/session.js';
 
 import type { Tool } from './tools/tool.js';
 
@@ -46,6 +47,7 @@ export const allTools: Tool<any>[] = [
   ...mouse,
   ...pdf,
   ...screenshot,
+  ...session,
   ...snapshot,
   ...tabs,
   ...wait,

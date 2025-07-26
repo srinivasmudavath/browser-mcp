@@ -54,7 +54,12 @@ async function handleSSE(server: Server, req: http.IncomingMessage, res: http.Se
     const transport = new SSEServerTransport('/sse', res);
     sessions.set(transport.sessionId, transport);
     testDebug(`create SSE session: ${transport.sessionId}`);
-    const connection = await server.createConnection(transport);
+    
+    // Extract browser session ID from query parameters (optional)
+    const browserSessionId = url.searchParams.get('browserSessionId') || undefined;
+    testDebug(`browser session ID: ${browserSessionId || 'default'}`);
+    
+    const connection = await server.createConnection(transport, browserSessionId);
     res.on('close', () => {
       testDebug(`delete SSE session: ${transport.sessionId}`);
       sessions.delete(transport.sessionId);
@@ -80,11 +85,15 @@ async function handleStreamable(server: Server, req: http.IncomingMessage, res: 
   }
 
   if (req.method === 'POST') {
+    // Extract browser session ID from headers (optional)
+    const browserSessionId = req.headers['mcp-browser-session-id'] as string | undefined;
+    testDebug(`browser session ID: ${browserSessionId || 'default'}`);
+    
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => crypto.randomUUID(),
       onsessioninitialized: async sessionId => {
         testDebug(`create http session: ${transport.sessionId}`);
-        const connection = await server.createConnection(transport);
+        const connection = await server.createConnection(transport, browserSessionId);
         sessions.set(sessionId, { transport, connection });
       }
     });

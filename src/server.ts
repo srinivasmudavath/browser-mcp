@@ -16,6 +16,7 @@
 
 import { createConnection } from './connection.js';
 import { contextFactory as defaultContextFactory } from './browserContextFactory.js';
+import { SessionManager } from './sessionManager.js';
 
 import type { FullConfig } from './config.js';
 import type { Connection } from './connection.js';
@@ -34,8 +35,8 @@ export class Server {
     this._contextFactory = contextFactory ?? defaultContextFactory(this._browserConfig);
   }
 
-  async createConnection(transport: Transport): Promise<Connection> {
-    const connection = await createConnection(this.config, this._contextFactory);
+  async createConnection(transport: Transport, sessionId?: string): Promise<Connection> {
+    const connection = await createConnection(this.config, this._contextFactory, sessionId);
     this._connectionList.push(connection);
     await connection.server.connect(transport);
     return connection;
@@ -48,7 +49,14 @@ export class Server {
         return;
       isExiting = true;
       setTimeout(() => process.exit(0), 15000);
+      
+      // Close all connections first
       await Promise.all(this._connectionList.map(connection => connection.close()));
+      
+      // Then close all persistent browser sessions
+      const sessionManager = SessionManager.getInstance(this._contextFactory);
+      await sessionManager.closeAllSessions();
+      
       process.exit(0);
     };
 
