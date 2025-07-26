@@ -16,6 +16,7 @@
 
 import { createConnection } from './connection.js';
 import { contextFactory as defaultContextFactory } from './browserContextFactory.js';
+import { SessionBrowserContextFactory } from './sessionBrowserContextFactory.js';
 
 import type { FullConfig } from './config.js';
 import type { Connection } from './connection.js';
@@ -31,7 +32,9 @@ export class Server {
   constructor(config: FullConfig, contextFactory?: BrowserContextFactory) {
     this.config = config;
     this._browserConfig = config.browser;
-    this._contextFactory = contextFactory ?? defaultContextFactory(this._browserConfig);
+    // MINIMAL CHANGE: Wrap the factory with session persistence
+    const baseFactory = contextFactory ?? defaultContextFactory(this._browserConfig);
+    this._contextFactory = new SessionBrowserContextFactory(baseFactory);
   }
 
   async createConnection(transport: Transport): Promise<Connection> {
@@ -49,6 +52,11 @@ export class Server {
       isExiting = true;
       setTimeout(() => process.exit(0), 15000);
       await Promise.all(this._connectionList.map(connection => connection.close()));
+      
+      // MINIMAL CHANGE: Close persistent sessions
+      if (this._contextFactory instanceof SessionBrowserContextFactory) {
+        await this._contextFactory.closeAllSessions();
+      }
       process.exit(0);
     };
 
